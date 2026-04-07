@@ -45,20 +45,68 @@ SynID is a closed-loop self-distillation pipeline for identity-consistent image 
 
 ---
 
-## Quick Start (Google Colab, T4 GPU)
+## Quick Start
+
+**Google Colab (T4 GPU recommended)**
+
+Upload `identity_projection_complete.py` and `evaluation_harness.py` to Colab, then:
 
 ```python
-# Cell 1 — Install
 !pip install -q diffusers transformers accelerate controlnet_aux safetensors huggingface_hub insightface onnxruntime-gpu
+```
 
-# Cell 2 — Run full pipeline
+```python
 exec(open("identity_projection_complete.py").read())
+```
 
-# Cell 3 — Run evaluation + ablation
+```python
 exec(open("evaluation_harness.py").read())
 ```
 
-Upload both `.py` files to Colab before running. Runtime: ~70 min for 5 characters on T4.
+Runtime: ~70 min for 5 characters on T4.
+
+**Local (GPU required)**
+
+```bash
+pip install -r requirements.txt
+python identity_projection_complete.py
+```
+
+**As a library**
+
+```python
+from identity_projection_complete import (
+    create_character,
+    generate_with_adapter,
+    attach_identity_adapters,
+    register_adapter_hooks,
+    load_checkpoint,
+)
+
+# create a character from text
+profile = create_character(
+    identity_prompt="young woman, brown eyes, dark hair, photorealistic",
+    anchor_seed=1234,
+)
+
+# generate variations
+images = [
+    generate_with_adapter(
+        profile.identity_tokens, prompt, profile.pose_image,
+        pipe.unet, pipe, seed=seed
+    )
+    for seed, prompt in zip([5555, 6666, 7777, 8888], [
+        profile.character_core_prompt + ", smiling",
+        profile.character_core_prompt + ", serious",
+        profile.character_core_prompt + ", surprised",
+        profile.character_core_prompt + ", studio lighting",
+    ])
+]
+
+# save and reload without retraining
+save_checkpoint(profile, adapters, "/checkpoints/my_character")
+profile = load_checkpoint(adapters, "/checkpoints/my_character")
+```
 
 ---
 
@@ -130,7 +178,7 @@ Generation (text injection + UNet cross-attention, adaptive identity scale)
 ```bibtex
 @article{synid2025,
   title={SynID: Zero-Shot Identity-Consistent Image Generation via Synthetic Bootstrapping and On-the-Fly UNet Adaptation},
-  author={Anonymous},
+  author={Singh, Robin},
   journal={arXiv preprint},
   year={2025}
 }
