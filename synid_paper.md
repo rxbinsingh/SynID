@@ -269,7 +269,7 @@ This distinction matters: the system generalizes within the distribution of the 
 
 ### 5.2 Limitations
 
-**Pose dependence.** All generated images share the same head angle from the anchor pose skeleton. While a pose-free generation mode (using the adapter without ControlNet) is implemented, identity scores are lower without pose conditioning. Fully pose-free identity-consistent generation remains an open problem.
+**Pose dependence.** The primary path still benefits from anchor-derived pose conditioning. A pose-free generation mode (using the adapter without ControlNet) is implemented, but identity scores remain lower than the main ControlNet-assisted path. Fully pose-independent identity-consistent generation remains an open problem.
 
 **Expression sensitivity.** ArcFace scores drop from 0.61 (seed robustness) to 0.51 (expression variation), reflecting that strong expressions change facial geometry enough to affect face verification scores. This is a fundamental limitation of any face-based identity metric, not specific to SynID.
 
@@ -298,7 +298,7 @@ We presented SynID, a zero-shot identity-consistent generation system that requi
 
 The core finding is that **bootstrapped synthetic identity** — initializing from the model's own prior and refining through self-distillation — can replace dataset-driven identity conditioning for text-described characters. Each component of the pipeline is novel: the softmax-weighted synthetic anchor ensemble, the diversity-enforced bootstrap loop, the probe-based drift correction, the on-the-fly adapter training on synthetic images, and the dual-level injection with identity-aware negative conditioning.
 
-This opens new possibilities for character design, synthetic data generation, and privacy-preserving personalization where real reference images are unavailable or undesirable. Future work includes extending to SDXL, removing ControlNet pose dependence, and multi-character consistency.
+This opens new possibilities for character design, synthetic data generation, and privacy-preserving personalization where real reference images are unavailable or undesirable. The current implementation already includes stronger ArcFace-integrated training, a pose-free generation path, preliminary SDXL loading support, and multi-character consistency checks. Future work is therefore less about introducing these capabilities from scratch and more about making them first-class: closing the identity gap in the pose-free route, fully wiring SDXL through the training and evaluation stack, and extending multi-character support from evaluation to robust joint generation.
 
 ---
 

@@ -214,7 +214,7 @@ Generation (text injection + UNet cross-attention, adaptive identity scale)
 ## Status
 
 🚧 **Work in progress** — actively improving. Current focus:
-- [ ] Remove ControlNet pose dependence entirely
-- [ ] Stronger face-specific loss (full ArcFace integration)
-- [ ] Multi-character consistency (same identity, different prompts)
-- [ ] SDXL support
+- [x] Stronger face-specific loss (ArcFace-integrated projector + adapter losses)
+- [~] Pose-free generation path implemented, but still trails the main ControlNet route in identity stability
+- [~] Multi-character consistency checks and saved-profile evaluation implemented; broader multi-character generation remains open
+- [~] SDXL loading scaffold added; full SDXL pipeline support is not yet production-complete
