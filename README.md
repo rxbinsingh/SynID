@@ -19,6 +19,13 @@ SynID is a closed-loop self-distillation pipeline for identity-consistent image 
 
 **No real images. No external dataset. No pretraining.**
 
+The reference implementation is packaged in an app-first way:
+
+- `synid_ui.py` launches the interface immediately
+- heavy models are loaded only when the user clicks `Load Pipelines`
+- the UI can expose a mobile QR via the Gradio share URL
+- research/evaluation code remains available through the backend files
+
 ---
 
 ## Results
@@ -47,65 +54,85 @@ SynID is a closed-loop self-distillation pipeline for identity-consistent image 
 
 ## Quick Start
 
+### App UI
+
 **Google Colab (T4 GPU recommended)**
 
-Upload `identity_projection_complete.py` and `evaluation_harness.py` to Colab, then:
+Upload these files into the same Colab working directory:
+
+- `synid_ui.py`
+- `identity_projection_complete.py`
+- `evaluation_harness.py`
+
+Then run:
 
 ```python
-!pip install -q diffusers transformers accelerate controlnet_aux safetensors huggingface_hub insightface onnxruntime-gpu
+!pip install -q gradio diffusers transformers accelerate controlnet_aux safetensors huggingface_hub insightface onnxruntime-gpu
+exec(open("synid_ui.py").read())
 ```
 
-```python
-exec(open("identity_projection_complete.py").read())
-```
+Usage flow:
 
-```python
-exec(open("evaluation_harness.py").read())
-```
-
-Runtime: ~70 min for 5 characters on T4.
+1. Open the Gradio app
+2. Click `Load Pipelines`
+3. Create a character
+4. Generate, evaluate, or use pose-free mode
+5. Scan the QR block if you want to open the app on mobile
 
 **Local (GPU required)**
 
 ```bash
 pip install -r requirements.txt
-python identity_projection_complete.py
+python synid_ui.py
 ```
 
-**As a library**
+### Research Backend / Scripting
+
+If you want the backend without the UI:
 
 ```python
 from identity_projection_complete import (
+    init_synid_backend,
     create_character,
-    generate_with_adapter,
     attach_identity_adapters,
     register_adapter_hooks,
+    generate_with_adapter,
+    save_checkpoint,
     load_checkpoint,
+    pipe,
 )
 
-# create a character from text
+init_synid_backend()
+
 profile = create_character(
     identity_prompt="young woman, brown eyes, dark hair, photorealistic",
     anchor_seed=1234,
+    num_identity_tokens=4,
+    train_steps=250,
 )
 
-# generate variations
-images = [
-    generate_with_adapter(
-        profile.identity_tokens, prompt, profile.pose_image,
-        pipe.unet, pipe, seed=seed
-    )
-    for seed, prompt in zip([5555, 6666, 7777, 8888], [
-        profile.character_core_prompt + ", smiling",
-        profile.character_core_prompt + ", serious",
-        profile.character_core_prompt + ", surprised",
-        profile.character_core_prompt + ", studio lighting",
-    ])
-]
+adapters = attach_identity_adapters(pipe.unet, identity_dim=768, scale=0.5)
+hooks = register_adapter_hooks(pipe.unet)
 
-# save and reload without retraining
-save_checkpoint(profile, adapters, "/checkpoints/my_character")
-profile = load_checkpoint(adapters, "/checkpoints/my_character")
+image = generate_with_adapter(
+    profile.identity_tokens,
+    profile.character_core_prompt + ", bright smile, studio portrait",
+    profile.pose_image,
+    pipe.unet,
+    pipe,
+    seed=5555,
+)
+```
+
+### Full Benchmark
+
+The five-character benchmark is now opt-in rather than auto-running on import.
+
+```python
+from identity_projection_complete import init_synid_backend, run_full_benchmark
+
+init_synid_backend()
+run_full_benchmark()
 ```
 
 ---
@@ -114,7 +141,8 @@ profile = load_checkpoint(adapters, "/checkpoints/my_character")
 
 | File | Description |
 |------|-------------|
-| `identity_projection_complete.py` | Full pipeline — single file, everything included |
+| `synid_ui.py` | App-first Gradio interface with staged backend loading and mobile QR |
+| `identity_projection_complete.py` | Backend pipeline: initialization, identity learning, adapter training, checkpointing |
 | `evaluation_harness.py` | Evaluation suites + ablation study |
 | `synid_paper.md` | Paper (Markdown) |
 | `synid_paper.tex` | Paper (LaTeX, arXiv-ready) |
@@ -122,19 +150,16 @@ profile = load_checkpoint(adapters, "/checkpoints/my_character")
 
 ---
 
-## Customizing Your Character
+## App Flow
 
-Edit the `TEST_CHARACTERS` list in `identity_projection_complete.py`:
+The repository now follows an app-style runtime flow:
 
-```python
-TEST_CHARACTERS = [
-    {
-        "name": "my_character",
-        "seed": 1234,
-        "prompt": "young woman, blue eyes, blonde hair, freckles, upper body portrait, photorealistic"
-    },
-]
-```
+1. Launch `synid_ui.py`
+2. Load core pipelines explicitly with `Load Pipelines`
+3. Create a character profile from text
+4. Reuse the same profile for generation, evaluation, saving, and mobile access
+
+This keeps startup responsive and avoids notebook-style auto-execution of the full benchmark.
 
 ---
 

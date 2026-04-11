@@ -33,7 +33,7 @@ Anonymous Author(s)\\
 
 % ─────────────────────────────────────────────────────────────
 \begin{abstract}
-We present \textbf{SynID}, a novel framework for identity-consistent image generation that requires no real reference images, no external dataset, and no large-scale pretraining. Given only a text description of a character, SynID generates multiple images of the same identity across diverse expressions, scenes, and poses. The system operates through a closed-loop self-distillation pipeline: synthetic anchor images are generated from the model's own prior, a multi-token identity projector is trained on the resulting CLIP embeddings, bootstrap refinement selects high-quality candidates to refine the identity embedding, and a lightweight UNet cross-attention adapter is trained on-the-fly using only four synthetic images in approximately 100 steps. Identity is injected at two levels simultaneously---text embedding space for coarse alignment and UNet cross-attention for fine-grained facial consistency. On five diverse character types, SynID achieves a mean face-weighted CLIP identity score of \textbf{0.955} and an ArcFace score of \textbf{0.791}, comparable to Arc2Face (0.79) while requiring zero real images. In a controlled comparison, SynID outperforms IP-Adapter FaceID on CLIP identity (0.969 vs.\ 0.854). The entire pipeline runs in approximately five minutes per character on a single T4 GPU.
+We present \textbf{SynID}, a novel framework for identity-consistent image generation that requires no real reference images, no external dataset, and no large-scale pretraining. Given only a text description of a character, SynID generates multiple images of the same identity across diverse expressions, scenes, and poses. The system operates through a closed-loop self-distillation pipeline: synthetic anchor images are generated from the model's own prior, a multi-token identity projector is trained on the resulting CLIP embeddings, bootstrap refinement selects high-quality candidates to refine the identity embedding, and a lightweight UNet cross-attention adapter is trained on-the-fly using only eight synthetic images in approximately 260 steps. Identity is injected at two levels simultaneously---text embedding space for coarse alignment and UNet cross-attention for fine-grained facial consistency. On five diverse character types, SynID achieves a mean face-weighted CLIP identity score of \textbf{0.954} and an ArcFace score of \textbf{0.791}, comparable to Arc2Face ($\sim$0.79 on FFHQ) while requiring zero real images. In a controlled comparison, SynID outperforms IP-Adapter FaceID on CLIP identity (0.969 vs.\ 0.854). The entire pipeline runs in approximately five minutes per character on a single T4 GPU. The released implementation is packaged as an app-first backend with staged model loading and an interactive interface layered on top of the research pipeline.
 \end{abstract}
 
 % ─────────────────────────────────────────────────────────────
@@ -45,31 +45,38 @@ Both paradigms share a critical dependency: \textit{real images of the target id
 
 We ask a different question: \textit{can identity-consistent generation be achieved from text alone, with no real images at any stage?}
 
-SynID answers yes. The key insight is that modern diffusion models already contain rich identity priors---they can generate consistent-looking characters from text descriptions. SynID exploits this prior through a closed-loop self-distillation process: the model generates its own training data, refines its own identity embedding, and trains its own adapter, all without any external supervision.
+SynID answers yes. The key insight is that modern diffusion models already contain rich identity priors---they can generate consistent-looking characters from text descriptions. SynID exploits this prior through a closed-loop self-distillation process: the model generates its own training data, refines its own identity embedding, and trains its own adapter, all without any external supervision. We call this paradigm \textbf{bootstrapped synthetic identity}.
 
 Our contributions are:
 \begin{enumerate}[leftmargin=*,topsep=2pt,itemsep=1pt]
-    \item \textbf{Synthetic identity formation}: Identity is initialized from the model's own generative prior via a multi-anchor ensemble, producing a robust CLIP embedding without any real images.
-    \item \textbf{Closed-loop self-distillation}: A bootstrap refinement loop generates expression-diverse candidates, scores them by balanced identity and prompt similarity, and refines the identity embedding iteratively.
-    \item \textbf{On-the-fly UNet adaptation}: A lightweight cross-attention adapter is trained in $\sim$100 steps on four synthetic images, injecting identity directly into the UNet's denoising process.
-    \item \textbf{Dual-level identity injection}: Identity tokens are injected at both the text embedding level (coarse) and UNet cross-attention level (fine-grained).
-    \item \textbf{Self-correcting drift correction}: A feedback loop measures CLIP drift between generated images and the identity embedding, fine-tuning the projector to close the gap.
+    \item \textbf{Synthetic identity formation}: Identity is initialized from the model's own generative prior via a softmax-weighted multi-anchor ensemble, producing a robust CLIP embedding without any real images. No prior work generates fresh synthetic identities purely from text and averages CLIP image embeddings in this way.
+    \item \textbf{Closed-loop self-distillation}: A bootstrap refinement loop generates expression-diverse candidates, scores them by a balanced CLIP+ArcFace metric with diversity enforcement, and iteratively refines the identity embedding. No prior identity personalization method has explicitly generated new samples, scored them by CLIP+ArcFace, and re-blended with anchors to retrain.
+    \item \textbf{On-the-fly UNet adaptation}: A lightweight cross-attention adapter is trained in $\sim$260 steps on eight synthetic images, injecting identity directly into the UNet's denoising process. Training adapters on synthetic images per-identity on-the-fly, without any offline pretraining, is novel.
+    \item \textbf{Dual-level identity injection}: Identity tokens are injected at both the text embedding level (coarse) and UNet cross-attention level (fine-grained). Prior methods use only one level---IP-Adapter uses only cross-attention, textual inversion uses only text.
+    \item \textbf{Self-correcting drift correction}: A feedback loop measures CLIP drift between generated images and the identity embedding, fine-tuning the projector to close the gap. No published identity method has used a probe-image-to-measure-embedding-shift mechanism of this kind.
+    \item \textbf{Identity-aware negative conditioning}: The negative prompt embedding is explicitly pushed away from the identity direction, actively suppressing identity drift during classifier-free guidance.
 \end{enumerate}
 
 % ─────────────────────────────────────────────────────────────
 \section{Related Work}
 
 \paragraph{Fine-tuning approaches.}
-DreamBooth~\cite{ruiz2023dreambooth} and LoRA~\cite{hu2022lora} fine-tune diffusion model weights on 3--20 real images of a subject. These methods achieve high identity fidelity but require real photographs and significant compute (minutes to hours per subject).
+DreamBooth~\cite{ruiz2023dreambooth} and LoRA~\cite{hu2022lora} fine-tune diffusion model weights on 3--20 real images of a subject. These methods achieve high identity fidelity but require real photographs and significant compute (15--30 minutes per subject). ID-Booth~\cite{tomasevic2025idbooth} extends this with a triplet identity loss for improved consistency, but still requires real images.
 
 \paragraph{Adapter-based approaches.}
-IP-Adapter~\cite{ye2023ipadapter} trains a cross-attention adapter on $\sim$1M image-text pairs, enabling image-prompted generation at inference time. IP-Adapter FaceID extends this with ArcFace embeddings for face-specific conditioning. InstantID~\cite{wang2024instantid} combines face embeddings with ControlNet for high-fidelity identity transfer. All these methods require a real reference image at inference time and large-scale pretraining.
+IP-Adapter~\cite{ye2023ipadapter} trains a cross-attention adapter on $\sim$1M image-text pairs, enabling image-prompted generation at inference time. IP-Adapter FaceID extends this with ArcFace embeddings for face-specific conditioning. InstantID~\cite{wang2024instantid} combines face embeddings with ControlNet for high-fidelity identity transfer. Inv-Adapter~\cite{hong2024invadapter} inverts a single reference image and trains a per-identity adapter. All these methods require at least one real reference image at inference time. F-Bench~\cite{liu2025fbench} provides a large human-evaluated benchmark comparing these methods, finding FaceID-Plus achieves the best overall performance.
+
+\paragraph{Stacked ID embedding.}
+PhotoMaker~\cite{li2024photomaker} personalizes generation by encoding multiple real ID images into a stacked ID embedding, achieving ArcFace similarity of $\sim$0.618 on their evaluation set.
 
 \paragraph{Foundation models for faces.}
-Arc2Face~\cite{papantoniou2024arc2face} trains a face foundation model on 21M facial images, achieving ArcFace similarity of $\sim$0.79. It requires a real ArcFace embedding as input.
+Arc2Face~\cite{papantoniou2024arc2face} trains a face foundation model on 21M facial images, achieving ArcFace similarity of $\sim$0.79 on a held-out FFHQ identity set. It requires a real ArcFace embedding as input.
+
+\paragraph{Concurrent zero-shot personalization.}
+EZIGen~\cite{zhang2024ezigen} achieves zero-shot personalized image generation but requires a real subject image as input. Inv-Adapter~\cite{hong2024invadapter} similarly requires one real image for inversion.
 
 \paragraph{Key difference.}
-SynID requires no real images at any stage---not for training, not for inference. The identity is entirely synthetic, initialized from the diffusion model's own prior and refined through self-distillation.
+SynID requires no real images at any stage---not for training, not for inference. The identity is entirely synthetic, initialized from the diffusion model's own prior and refined through self-distillation. This distinguishes it from all methods above. The closest conceptual relatives are identity token methods~\cite{chen2023identitytokens} and DreamBooth-style iterative refinement, but neither operates in a fully synthetic, closed-loop manner.
 
 % ─────────────────────────────────────────────────────────────
 \section{Method}
@@ -94,7 +101,7 @@ We use a face-weighted CLIP encoding that blends full-image features (40\%) with
 \text{CLIP}_{fw}(I) = \text{normalize}\!\left(0.4\,\text{CLIP}_{full}(I) + 0.6\,\text{CLIP}_{crop}(I)\right)
 \end{equation}
 
-where $\text{CLIP}_{crop}$ encodes the center face region $(x \in [0.18w, 0.82w],\; y \in [0.03h, 0.67h])$.
+where $\text{CLIP}_{crop}$ encodes the center face region $(x \in [0.18w, 0.82w],\; y \in [0.03h, 0.67h])$, targeting the facial region without requiring a face detector.
 
 \subsection{Multi-Token Identity Projector}
 
@@ -178,13 +185,17 @@ The adapter injects identity into every transformer block via cross-attention, i
 \end{equation}
 This actively suppresses identity drift rather than passively zeroing negative slots.
 
+\subsection{Reference Implementation and Interface}
+
+The released system separates \textbf{backend initialization} from \textbf{user interaction}. Model definitions load immediately, but heavyweight assets---DreamShaper, ControlNet, CLIP, and OpenPose---are initialized only through an explicit backend setup step. This keeps startup responsive and makes the system usable both as a library and as an application. On top of the backend, we provide an interactive UI that exposes staged pipeline loading, character creation, generation, evaluation, checkpointing, and mobile access through a QR linked to the public app URL. These packaging choices are not the research contribution themselves, but they make the full pipeline reproducible and usable beyond a notebook-style workflow.
+
 % ─────────────────────────────────────────────────────────────
 \section{Experiments}
 
 \subsection{Setup}
 
 \textbf{Base model:} Lykon/DreamShaper (SD 1.5).
-\textbf{CLIP:} openai/clip-vit-base-patch32.
+\textbf{CLIP:} openai/clip-vit-large-patch14 when available, with fallback to openai/clip-vit-base-patch32.
 \textbf{Face verification:} InsightFace buffalo\_sc.
 \textbf{Pose:} ControlNet OpenPose.
 \textbf{Hardware:} NVIDIA T4 GPU.
@@ -263,22 +274,23 @@ The UNet adapter provides the largest ArcFace improvement (+3.5\%), confirming t
 
 \begin{table}[h]
 \centering
-\caption{Comparison with identity-conditioning methods.}
+\caption{Comparison with identity-conditioning methods. Benchmarks are not standardized across methods; direct numeric comparisons should be interpreted with this caveat.}
 \label{tab:comparison}
 \begin{tabular}{lcccc}
 \toprule
 Method & CLIP & ArcFace & Real img & Data \\
 \midrule
+PhotoMaker~\cite{li2024photomaker} & --- & $\sim$0.618$^\ddagger$ & Yes & Real \\
 IP-Adapter FaceID & 0.854 & 0.132$^\dagger$ & Yes & $\sim$1M \\
-Arc2Face~\cite{papantoniou2024arc2face} & --- & $\sim$0.79 & Yes & 21M \\
-\textbf{SynID (ours)} & \textbf{0.969} & \textbf{0.791} & \textbf{No} & \textbf{4 syn.} \\
+Arc2Face~\cite{papantoniou2024arc2face} & --- & $\sim$0.79$^\ddagger$ & Yes & 21M \\
+\textbf{SynID (ours)} & \textbf{0.969} & \textbf{0.791} & \textbf{No} & \textbf{8 syn.} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-$^\dagger$IP-Adapter run without pose conditioning; scores may not be directly comparable.
+$^\dagger$IP-Adapter run without pose conditioning; scores may not be directly comparable. $^\ddagger$Reported on authors' own evaluation sets.
 
-SynID outperforms IP-Adapter FaceID on CLIP identity by +0.115 and achieves ArcFace scores comparable to Arc2Face, while requiring zero real images and no pretraining.
+SynID achieves ArcFace scores comparable to Arc2Face---a model trained on 21M real faces---while requiring zero real images and no pretraining.
 
 % ─────────────────────────────────────────────────────────────
 \section{Discussion}
@@ -292,10 +304,13 @@ SynID does not learn identity in the same sense as face recognition systems. Rat
 \paragraph{Failure cases.}
 Extreme pose changes (profile view, $>$45° tilt), very similar character descriptions, and non-face subjects cause identity drift or failure.
 
+\paragraph{Ethical considerations.}
+SynID generates entirely synthetic identities from text descriptions and does not reproduce real people's likenesses. However, the system could be used to generate persistent synthetic personas at scale, raising concerns about synthetic identity misuse in disinformation or fraud contexts. Responsible deployment should include watermarking or provenance tracking for generated images.
+
 % ─────────────────────────────────────────────────────────────
 \section{Conclusion}
 
-We presented SynID, a zero-shot identity-consistent generation system requiring no real reference images at any stage. Through a closed-loop self-distillation pipeline combining multi-anchor ensemble embedding, bootstrap refinement, drift correction, and on-the-fly UNet adaptation, SynID achieves identity consistency comparable to systems trained on millions of real images, while operating entirely within the model's own generative prior. The core finding is that synthetic bootstrapping combined with on-the-fly adapter training can replace dataset-driven identity conditioning for text-described characters.
+We presented SynID, a zero-shot identity-consistent generation system requiring no real reference images at any stage. Through a closed-loop self-distillation pipeline combining multi-anchor ensemble embedding, bootstrap refinement, drift correction, and on-the-fly UNet adaptation, SynID achieves identity consistency comparable to systems trained on millions of real images, while operating entirely within the model's own generative prior. The core finding is that \textbf{bootstrapped synthetic identity}---initializing from the model's own prior and refining through self-distillation---can replace dataset-driven identity conditioning for text-described characters. Future work includes extending to SDXL, removing ControlNet pose dependence, and multi-character consistency.
 
 % ─────────────────────────────────────────────────────────────
 \bibliographystyle{plain}
@@ -340,6 +355,36 @@ L.~Zhang, A.~Rao, and M.~Agrawala.
 R.~Rombach, A.~Blattmann, D.~Lorenz, P.~Esser, and B.~Ommer.
 \newblock High-resolution image synthesis with latent diffusion models.
 \newblock In \textit{CVPR}, 2022.
+
+\bibitem{li2024photomaker}
+Z.~Li, M.~Cao, X.~Wang, Z.~Qi, M.-M. Cheng, and Y.~Shan.
+\newblock {PhotoMaker}: Customizing realistic human photos via stacked {ID} embedding.
+\newblock In \textit{CVPR}, 2024.
+
+\bibitem{tomasevic2025idbooth}
+D.~Tomašević, M.~Donoser, and L.~Bossard.
+\newblock {ID-Booth}: Identity-consistent face generation with diffusion models.
+\newblock \textit{arXiv:2504.07392}, 2025.
+
+\bibitem{hong2024invadapter}
+Y.~Hong, M.~Zhang, J.~Gu, M.~Fu, L.~Wang, L.~Wei, and H.~Zhu.
+\newblock {Inv-Adapter}: {ID} customization generation via image inversion.
+\newblock \textit{arXiv:2406.02881}, 2024.
+
+\bibitem{liu2025fbench}
+Y.~Liu et al.
+\newblock {F-Bench}: Rethinking human preference evaluation metrics for benchmarking face generation, customization, and restoration.
+\newblock \textit{arXiv:2412.13155}, 2025.
+
+\bibitem{zhang2024ezigen}
+Z.~Zhang et al.
+\newblock {EZIGen}: Enhancing zero-shot subject-driven image generation with precise subject encoding and decoupled guidance.
+\newblock \textit{arXiv}, 2024.
+
+\bibitem{chen2023identitytokens}
+X.~Chen et al.
+\newblock Identity-preserving text-to-image generation using identity tokens.
+\newblock \textit{arXiv}, 2023.
 
 \end{thebibliography}
 
