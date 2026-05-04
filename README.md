@@ -13,12 +13,13 @@ SynID generates multiple consistent images of the same character from a text des
 
 The pipeline is a closed-loop self-distillation system: the diffusion model generates its own training data, refines its own identity embedding, and trains its own adapter — entirely from text.
 
-![SynID Pipeline](assets/pipeline.png)
-![Architecture](assets/architecture.png)
-
 ---
 
 ## How it works
+
+![SynID Pipeline](assets/pipeline.png)
+
+![SynID Architecture](assets/architecture.png)
 
 ```
 Text prompt
@@ -75,9 +76,11 @@ Generation
 
 **ArcFace (full system): 0.791** — comparable to Arc2Face (~0.79) trained on 21M real faces.
 
+### Evaluation suites — expression, scene, pose, seed robustness
+
 ![Evaluation Suites](assets/eval_suites.png)
 
-### Ablation
+### Ablation — each component's contribution
 
 ![Ablation Progression](assets/ablation.png)
 
@@ -96,6 +99,8 @@ Generation
 | Arc2Face | — | ~0.79 | Yes | ~21M faces |
 | PhotoMaker | — | ~0.618 | Yes (multiple) | Real |
 | **SynID (ours)** | **0.969** | **0.791** | **No** | **8 synthetic** |
+
+### Limitations and failure cases
 
 ![Failure Cases](assets/failure_cases.png)
 
@@ -226,8 +231,8 @@ Key dependencies: `torch`, `diffusers`, `transformers`, `controlnet_aux`, `insig
 
 ## Paper
 
-> **SynID: Zero-Shot Identity-Consistent Image Generation via Synthetic Bootstrapping and On-the-Fly UNet Adaptation**  
-> Robin Singh, 2025  
+> **SynID: Zero-Shot Identity-Consistent Image Generation via Synthetic Bootstrapping and On-the-Fly UNet Adaptation**
+> Robin Singh, 2025
 > [https://doi.org/10.13140/RG.2.2.30671.85925](https://doi.org/10.13140/RG.2.2.30671.85925)
 
 ```bibtex
@@ -235,7 +240,7 @@ Key dependencies: `torch`, `diffusers`, `transformers`, `controlnet_aux`, `insig
   title   = {SynID: Zero-Shot Identity-Consistent Image Generation via
              Synthetic Bootstrapping and On-the-Fly UNet Adaptation},
   author  = {Singh, Robin},
-  year    = {2026},
+  year    = {2025},
   doi     = {10.13140/RG.2.2.30671.85925},
   url     = {https://doi.org/10.13140/RG.2.2.30671.85925}
 }
