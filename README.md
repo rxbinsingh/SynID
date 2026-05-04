@@ -13,6 +13,9 @@ SynID generates multiple consistent images of the same character from a text des
 
 The pipeline is a closed-loop self-distillation system: the diffusion model generates its own training data, refines its own identity embedding, and trains its own adapter — entirely from text.
 
+![SynID Pipeline](assets/pipeline.png)
+![Architecture](assets/architecture.png)
+
 ---
 
 ## How it works
@@ -59,6 +62,8 @@ Generation
 
 ### Multi-character benchmark (5 characters)
 
+![Multi-Domain Character Profiles](assets/multi_domain.png)
+
 | Character | CLIP Identity | Pairwise Consistency |
 |---|---|---|
 | Woman (brunette) | 0.9515 | 0.9435 ± 0.022 |
@@ -70,7 +75,11 @@ Generation
 
 **ArcFace (full system): 0.791** — comparable to Arc2Face (~0.79) trained on 21M real faces.
 
+![Evaluation Suites](assets/eval_suites.png)
+
 ### Ablation
+
+![Ablation Progression](assets/ablation.png)
 
 | Configuration | CLIP | ArcFace | Time |
 |---|---|---|---|
@@ -87,6 +96,8 @@ Generation
 | Arc2Face | — | ~0.79 | Yes | ~21M faces |
 | PhotoMaker | — | ~0.618 | Yes (multiple) | Real |
 | **SynID (ours)** | **0.969** | **0.791** | **No** | **8 synthetic** |
+
+![Failure Cases](assets/failure_cases.png)
 
 ---
 
