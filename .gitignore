@@ -20,6 +20,11 @@ adapter_library/
 
 # Output images
 synid_output/
+# Track assets folder but ignore loose output images
+!assets/
+!assets/*.png
+!assets/*.jpg
+!assets/*.jpeg
 *.png
 *.jpg
 *.jpeg
