@@ -3,6 +3,7 @@
 **Zero-shot identity-consistent image generation from text alone.**
 
 [![Paper](https://img.shields.io/badge/paper-ResearchGate-00CCBB?logo=researchgate&logoColor=white)](https://doi.org/10.13140/RG.2.2.30671.85925)
+[![HuggingFace](https://img.shields.io/badge/🤗%20HuggingFace-SynID-FFD21E)](https://huggingface.co/rxbinsingh/SynID)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 
@@ -223,7 +224,7 @@ Key dependencies: `torch`, `diffusers`, `transformers`, `controlnet_aux`, `insig
   title   = {SynID: Zero-Shot Identity-Consistent Image Generation via
              Synthetic Bootstrapping and On-the-Fly UNet Adaptation},
   author  = {Singh, Robin},
-  year    = {2025},
+  year    = {2026},
   doi     = {10.13140/RG.2.2.30671.85925},
   url     = {https://doi.org/10.13140/RG.2.2.30671.85925}
 }
