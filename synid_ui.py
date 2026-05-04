@@ -339,7 +339,7 @@ def _load_backend(progress=gr.Progress()):
         progress(0.18, desc="loading core pipelines")
         backend_info = init_synid_backend()
         progress(0.88, desc="loading evaluation tools")
-        if "eval_quick" not in globals() or "eval_full" not in globals():
+        if "eval_quick" not in globals() and "eval_full" not in globals():
             _exec_local_file("evaluation_harness.py")
         _backend_state["ready"] = True
         _backend_state["summary"] = (
@@ -463,14 +463,14 @@ def gen_variations(expression, n_imgs, id_scale, progress=gr.Progress()):
     return imgs, f"avg identity {avg:.4f} · {len(imgs)} images"
 
 def gen_posefree(n_imgs, progress=gr.Progress()):
-    global _last_images
+    global _last_images, posefree_pipe
     if not _is_backend_ready():
         return [], "load the pipelines first"
     name = _current_name[0]
     if not name or name not in _profiles:
         return [], "create a character first"
     profile = _profiles[name]
-    if 'posefree_pipe' not in dir() or posefree_pipe is None:
+    if 'posefree_pipe' not in globals() or globals().get('posefree_pipe') is None:
         globals()['posefree_pipe'] = load_posefree_pipe()
     imgs = []; scores = []
     for i in range(int(n_imgs)):
@@ -503,7 +503,9 @@ def run_eval_ui(mode, do_save, progress=gr.Progress()):
         imgs = []
         for suite_res in res.values(): imgs.extend(suite_res["images"])
         clip_avg = float(np.mean([r["clip_mean"] for r in res.values()]))
-        status = f"full eval · avg CLIP={clip_avg:.4f}"
+        arc_vals = [r["arc_mean"] for r in res.values() if r["arc_mean"] is not None]
+        arc_avg_str = f"{float(np.mean(arc_vals)):.4f}" if arc_vals else "N/A"
+        status = f"full eval · avg CLIP={clip_avg:.4f} · ArcFace={arc_avg_str}"
     progress(1.0)
     return imgs, status
 
@@ -607,11 +609,11 @@ with gr.Blocks(css=CSS, title="SynID", theme=gr.themes.Base()) as demo:
             with gr.Row():
                 for p in list(PRESETS.keys())[:3]:
                     gr.Button(p, elem_classes="preset-btn", size="sm").click(
-                        lambda x=p: PRESETS[x], outputs=prompt_box)
+                        lambda x=p: PRESETS[x], inputs=[], outputs=prompt_box)
             with gr.Row():
                 for p in list(PRESETS.keys())[3:]:
                     gr.Button(p, elem_classes="preset-btn", size="sm").click(
-                        lambda x=p: PRESETS[x], outputs=prompt_box)
+                        lambda x=p: PRESETS[x], inputs=[], outputs=prompt_box)
 
             with gr.Row():
                 seed_in   = gr.Number(value=42, label="Seed", precision=0)

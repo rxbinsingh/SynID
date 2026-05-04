@@ -310,7 +310,11 @@ def show_grid(images, cols=2):
 
 # ── ArcFace: InsightFace with CLIP face crop fallback ─────────
 import subprocess as _sp
-_sp.run(["pip", "install", "-q", "insightface", "onnxruntime-gpu"], check=False)
+try:
+    _sp.run(["pip", "install", "-q", "insightface", "onnxruntime"], check=False,
+            stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
+except Exception:
+    pass  # pip not available; InsightFace may already be installed
 
 _arcface_app  = None
 _arcface_mode = "clip_crop"
@@ -801,7 +805,8 @@ def train_adapter_on_bootstrap(
             with torch.no_grad():
                 pred_lat = ((noisy.float()-noise_pred.float())/vae_scale).half()
                 decoded  = vae.decode(pred_lat).sample
-                decoded_pil = __import__("torchvision").transforms.functional.to_pil_image(
+                import torchvision.transforms.functional as _tvf
+                decoded_pil = _tvf.to_pil_image(
                     ((decoded.float().clamp(-1,1)+1)/2)[0].cpu())
             if run_clip:
                 gen_emb   = encode_clip_image(decoded_pil).float().to(dev)
@@ -1085,24 +1090,7 @@ def create_character(
         identity_tokens=identity_tokens, projector_loss=projector_loss,
         bootstrap_candidates=candidates, drift_history=drift_history)
 
-# ── Checkpoint save / load ────────────────────────────────────
-def save_checkpoint(profile, adapters, save_dir):
-    os.makedirs(save_dir, exist_ok=True)
-    torch.save(profile.identity_tokens,            f"{save_dir}/identity_tokens.pt")
-    torch.save(profile.refined_identity_embedding, f"{save_dir}/refined_embedding.pt")
-    torch.save(profile.base_identity_embedding,    f"{save_dir}/base_embedding.pt")
-    torch.save(adapters.state_dict(),              f"{save_dir}/adapter_weights.pt")
-    if profile.pose_image is not None:
-        profile.pose_image.save(f"{save_dir}/pose_image.png")
-    profile.anchor_image.save(f"{save_dir}/anchor_image.png")
-    with open(f"{save_dir}/metadata.json","w") as f:
-        json.dump({"character_core_prompt": profile.character_core_prompt,
-                   "anchor_prompt": profile.anchor_prompt,
-                   "anchor_seed": profile.anchor_seed,
-                   "projector_loss": profile.projector_loss,
-                   "drift_history": profile.drift_history}, f, indent=2)
-    print(f"Checkpoint saved: {save_dir}")
-
+# ── load_checkpoint ──────────────────────────────────────────
 def load_checkpoint(adapters, save_dir):
     adapters.load_state_dict(torch.load(f"{save_dir}/adapter_weights.pt", map_location=device))
     tokens   = torch.load(f"{save_dir}/identity_tokens.pt",    map_location=device)
@@ -1121,29 +1109,6 @@ def load_checkpoint(adapters, save_dir):
         drift_history=meta.get("drift_history", []))
     print(f"Loaded: {meta['character_core_prompt'][:60]}")
     return profile
-
-def export_character(name, checkpoint_dir="/content/checkpoints"):
-    src = f"{checkpoint_dir}/{name}"; out = f"{checkpoint_dir}/{name}.character"
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-        for fname in os.listdir(src): zf.write(f"{src}/{fname}", arcname=fname)
-    print(f"Exported: {out} ({os.path.getsize(out)/1e6:.1f} MB)")
-    return out
-
-def save_adapter_to_library(adapters, character_name, library_dir="/content/adapter_library"):
-    os.makedirs(library_dir, exist_ok=True)
-    torch.save(adapters.state_dict(), f"{library_dir}/{character_name}_adapter.pt")
-    print(f"Saved to library: {library_dir}/{character_name}_adapter.pt")
-
-def build_meta_init(adapters, library_dir="/content/adapter_library"):
-    files = [f for f in os.listdir(library_dir) if f.endswith("_adapter.pt")]
-    if not files: print("No adapters in library yet."); return False
-    print(f"Building meta-init from {len(files)} saved adapters...")
-    state_dicts = [torch.load(f"{library_dir}/{f}", map_location=device) for f in files]
-    avg_state = {k: torch.stack([sd[k].float() for sd in state_dicts]).mean(dim=0)
-                 for k in state_dicts[0].keys()}
-    adapters.load_state_dict({k: v.to(next(adapters.parameters()).device)
-                              for k, v in avg_state.items()})
-    print(f"Meta-init loaded from {len(files)} characters."); return True
 
 # ── RUN — 5 diverse characters (opt-in) ──────────────────────
 TEST_CHARACTERS = [

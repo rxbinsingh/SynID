@@ -300,8 +300,8 @@ def print_results_table(eval_results, ablation_results, char_name, ablation_prof
     print(f"\n{'Suite':<20} {'CLIP':>8} {'±':>6} {'ArcFace':>9} {'±':>6} {'Faces':>6}")
     print("-"*60)
     for suite, res in eval_results.items():
-        arc_m = f"{res['arc_mean']:.4f}" if res['arc_mean'] else "N/A"
-        arc_s = f"{res['arc_std']:.4f}"  if res['arc_std']  else "N/A"
+        arc_m = f"{res['arc_mean']:.4f}" if res['arc_mean'] is not None else "N/A"
+        arc_s = f"{res['arc_std']:.4f}"  if res['arc_std']  is not None else "N/A"
         print(f"{suite:<20} {res['clip_mean']:>8.4f} {res['clip_std']:>6.4f} {arc_m:>9} {arc_s:>6} {res.get('n_face_detected',''):>6}")
     print(f"\n{'Config':<50} {'CLIP':>8} {'ArcFace':>10} {'Time':>8}")
     print("-"*80)
@@ -391,7 +391,7 @@ def run_standardized_benchmark(num_chars=8, gen_per_char=6, save_dir=None):
     print(f"\n{'Character':<20} {'CLIP':>8} {'ArcFace':>10} {'FID':>8}")
     print("-"*50)
     for r in results:
-        arc = f"{r['arc']:.4f}" if r['arc'] else "N/A"
+        arc = f"{r['arc']:.4f}" if r['arc'] is not None else "N/A"
         print(f"{r['name']:<20} {r['clip']:>8.4f} {arc:>10} {r['fid']:>8.1f}")
     mean_clip = np.mean([r['clip'] for r in results])
     mean_arc  = np.mean([r['arc'] for r in results if r['arc']])

@@ -1,37 +1,65 @@
-# SynID: Zero-Shot Identity-Consistent Image Generation
+# SynID
 
-> Generate multiple images of the same character from a text prompt alone — no real reference images, no dataset, no pretraining.
+**Zero-shot identity-consistent image generation from text alone.**
 
-[![arXiv](https://img.shields.io/badge/arXiv-coming_soon-red)](.)
-[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](.)
+[![Paper](https://img.shields.io/badge/paper-ResearchGate-00CCBB?logo=researchgate&logoColor=white)](https://doi.org/10.13140/RG.2.2.30671.85925)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 
 ---
 
-## What is SynID?
+SynID generates multiple consistent images of the same character from a text description — no real reference photos, no dataset, no pretraining. It runs in about five minutes per character on a single T4 GPU.
 
-SynID is a closed-loop self-distillation pipeline for identity-consistent image generation. Given only a text description, it:
+The pipeline is a closed-loop self-distillation system: the diffusion model generates its own training data, refines its own identity embedding, and trains its own adapter — entirely from text.
 
-1. Generates synthetic anchor images from the model's own prior
-2. Trains a multi-token identity projector on CLIP embeddings
-3. Refines the identity via bootstrap candidates and drift correction
-4. Trains a lightweight UNet cross-attention adapter on-the-fly (~100 steps, ~5 min)
-5. Injects identity at two levels: text embeddings (coarse) + UNet cross-attention (fine)
+---
 
-**No real images. No external dataset. No pretraining.**
+## How it works
 
-The reference implementation is packaged in an app-first way:
-
-- `synid_ui.py` launches the interface immediately
-- heavy models are loaded only when the user clicks `Load Pipelines`
-- the UI can expose a mobile QR via the Gradio share URL
-- research/evaluation code remains available through the backend files
+```
+Text prompt
+    │
+    ▼
+Multi-anchor ensemble
+  4 synthetic anchors, softmax-weighted by CLIP similarity
+    │
+    ▼
+Multi-token identity projector
+  CLIP embedding → 4 × 768 identity tokens
+  Trained with text alignment + diversity + ArcFace losses
+    │
+    ▼
+Bootstrap refinement
+  20 expression-diverse candidates generated and scored
+  Top-K selected with diversity enforcement
+  Projector retrained on refined embedding
+    │
+    ▼
+Drift correction
+  Probe image generated, CLIP drift measured
+  Projector fine-tuned to close the gap (2 rounds)
+    │
+    ▼
+UNet adapter training
+  Lightweight cross-attention adapters on all transformer blocks
+  Trained on 8 synthetic images: MSE + CLIP + ArcFace losses (~260 steps)
+    │
+    ▼
+Generation
+  Dual-level identity injection:
+    · Text embedding (coarse, adaptive scale)
+    · UNet cross-attention (fine-grained, every denoising step)
+  Identity-aware negative conditioning
+```
 
 ---
 
 ## Results
 
-| Character | FW-CLIP | Pairwise Consistency |
-|-----------|---------|---------------------|
+### Multi-character benchmark (5 characters)
+
+| Character | CLIP Identity | Pairwise Consistency |
+|---|---|---|
 | Woman (brunette) | 0.9515 | 0.9435 ± 0.022 |
 | Elderly man | 0.9508 | 0.9430 ± 0.031 |
 | Anime girl | 0.9655 | 0.9541 ± 0.013 |
@@ -39,56 +67,59 @@ The reference implementation is packaged in an app-first way:
 | Woman (redhead) | 0.9625 | 0.9411 ± 0.013 |
 | **Mean** | **0.9542** | **0.9469 ± 0.020** |
 
-**Full system ArcFace: 0.791** (comparable to Arc2Face 0.79, zero real images)
+**ArcFace (full system): 0.791** — comparable to Arc2Face (~0.79) trained on 21M real faces.
 
 ### Ablation
 
-| Config | CLIP | ArcFace | Time |
-|--------|------|---------|------|
-| Baseline (single anchor) | 0.9603 | 0.7562 | 55s |
-| + Multi-anchor ensemble | 0.9676 | 0.7581 | 78s |
-| + Bootstrap + Drift correction | 0.9665 | 0.7560 | 154s |
-| **Full system (+ UNet adapter)** | **0.9690** | **0.7912** | 158s |
+| Configuration | CLIP | ArcFace | Time |
+|---|---|---|---|
+| Baseline — single anchor, no bootstrap, no adapter | 0.9603 | 0.7562 | 55 s |
+| + Multi-anchor ensemble | 0.9676 | 0.7581 | 78 s |
+| + Bootstrap + drift correction | 0.9665 | 0.7560 | 154 s |
+| **Full system — + UNet adapter** | **0.9690** | **0.7912** | 158 s |
+
+### Comparison with prior methods
+
+| Method | CLIP | ArcFace | Real image required | Training data |
+|---|---|---|---|---|
+| IP-Adapter FaceID | 0.854 | 0.132 | Yes | ~1M pairs |
+| Arc2Face | — | ~0.79 | Yes | ~21M faces |
+| PhotoMaker | — | ~0.618 | Yes (multiple) | Real |
+| **SynID (ours)** | **0.969** | **0.791** | **No** | **8 synthetic** |
 
 ---
 
-## Quick Start
+## Quick start
 
-### App UI
+### Colab (recommended — T4 GPU)
 
-**Google Colab (T4 GPU recommended)**
-
-Upload these files into the same Colab working directory:
-
-- `synid_ui.py`
-- `identity_projection_complete.py`
-- `evaluation_harness.py`
-
-Then run:
+Upload `synid_ui.py`, `identity_projection_complete.py`, and `evaluation_harness.py` to the same Colab working directory, then run:
 
 ```python
-!pip install -q gradio diffusers transformers accelerate controlnet_aux safetensors huggingface_hub insightface onnxruntime-gpu
+!pip install -q gradio diffusers transformers accelerate controlnet_aux \
+    safetensors huggingface_hub insightface onnxruntime torchvision
+
 exec(open("synid_ui.py").read())
 ```
 
-Usage flow:
+Then in the UI:
+1. Click **Load Pipelines** — loads DreamShaper, ControlNet, CLIP, OpenPose
+2. Enter a character description and click **Create Character**
+3. Use the **Generate**, **Pose-Free**, or **Evaluate** tabs
+4. Scan the QR code to open the app on mobile
 
-1. Open the Gradio app
-2. Click `Load Pipelines`
-3. Create a character
-4. Generate, evaluate, or use pose-free mode
-5. Scan the QR block if you want to open the app on mobile
-
-**Local (GPU required)**
+### Local (GPU required)
 
 ```bash
+git clone https://github.com/rxbinsingh/SynID
+cd SynID
 pip install -r requirements.txt
 python synid_ui.py
 ```
 
-### Research Backend / Scripting
+> GPU users: replace `onnxruntime` with `onnxruntime-gpu` in `requirements.txt` for faster face detection.
 
-If you want the backend without the UI:
+### Scripting / research backend
 
 ```python
 from identity_projection_complete import (
@@ -112,7 +143,7 @@ profile = create_character(
 )
 
 adapters = attach_identity_adapters(pipe.unet, identity_dim=768, scale=0.5)
-hooks = register_adapter_hooks(pipe.unet)
+hooks    = register_adapter_hooks(pipe.unet)
 
 image = generate_with_adapter(
     profile.identity_tokens,
@@ -122,11 +153,10 @@ image = generate_with_adapter(
     pipe,
     seed=5555,
 )
+image.save("output.png")
 ```
 
-### Full Benchmark
-
-The five-character benchmark is now opt-in rather than auto-running on import.
+### Full benchmark (5 characters)
 
 ```python
 from identity_projection_complete import init_synid_backend, run_full_benchmark
@@ -140,81 +170,67 @@ run_full_benchmark()
 ## Files
 
 | File | Description |
-|------|-------------|
-| `synid_ui.py` | App-first Gradio interface with staged backend loading and mobile QR |
-| `identity_projection_complete.py` | Backend pipeline: initialization, identity learning, adapter training, checkpointing |
-| `evaluation_harness.py` | Evaluation suites + ablation study |
-| `synid_paper.md` | Paper (Markdown) |
-| `synid_paper.tex` | Paper (LaTeX, arXiv-ready) |
-| `requirements.txt` | Dependencies |
+|---|---|
+| `synid_ui.py` | Gradio UI — staged pipeline loading, character creation, generation, evaluation, mobile QR |
+| `identity_projection_complete.py` | Full backend — initialization, identity learning, adapter training, checkpointing |
+| `evaluation_harness.py` | Evaluation suites (quick / full), ablation study, standardized benchmark |
+| `requirements.txt` | Python dependencies |
 
 ---
 
-## App Flow
+## Checkpointing
 
-The repository now follows an app-style runtime flow:
+Save and reload a trained character profile:
 
-1. Launch `synid_ui.py`
-2. Load core pipelines explicitly with `Load Pipelines`
-3. Create a character profile from text
-4. Reuse the same profile for generation, evaluation, saving, and mobile access
+```python
+from identity_projection_complete import save_checkpoint, load_checkpoint, attach_identity_adapters
 
-This keeps startup responsive and avoids notebook-style auto-execution of the full benchmark.
+# save
+save_checkpoint(profile, adapters, "/path/to/checkpoints/my_character")
 
----
-
-## How It Works
-
+# load
+adapters = attach_identity_adapters(pipe.unet, identity_dim=768, scale=0.5)
+profile  = load_checkpoint(adapters, "/path/to/checkpoints/my_character")
 ```
-Text prompt
-    ↓
-Multi-anchor ensemble (4 anchors, softmax-weighted by CLIP similarity)
-    ↓
-Multi-token projector (512 → 1024 → 4×768, diversity + ArcFace loss)
-    ↓
-Bootstrap refinement (8 expression candidates, ArcFace-scored selection)
-    ↓
-Drift correction (2 rounds, self-correcting feedback loop)
-    ↓
-UNet adapter training (200 steps MSE + CLIP + ArcFace, on 8 synthetic images)
-    ↓
-Generation (text injection + UNet cross-attention, adaptive identity scale)
+
+Export as a portable `.character` archive:
+
+```python
+from identity_projection_complete import export_character
+export_character("my_character", checkpoint_dir="/path/to/checkpoints")
 ```
 
 ---
 
-## Key Differences from IP-Adapter
+## Requirements
 
-| | IP-Adapter FaceID | SynID |
-|--|-------------------|-------|
-| Real reference image | Required | Not needed |
-| Training data | ~1M image pairs | 4 synthetic images |
-| Pretraining time | Days | None |
-| Per-character time | Inference only | ~5 min |
-| CLIP identity | 0.854 | **0.969** |
-| ArcFace | 0.132* | **0.791** |
+- Python 3.9+
+- CUDA GPU (T4 or better recommended; 8 GB+ VRAM)
+- See `requirements.txt` for full dependency list
 
-*IP-Adapter run without pose conditioning
+Key dependencies: `torch`, `diffusers`, `transformers`, `controlnet_aux`, `insightface`, `gradio`
 
 ---
 
-## Citation
+## Paper
+
+> **SynID: Zero-Shot Identity-Consistent Image Generation via Synthetic Bootstrapping and On-the-Fly UNet Adaptation**  
+> Robin Singh, 2025  
+> [https://doi.org/10.13140/RG.2.2.30671.85925](https://doi.org/10.13140/RG.2.2.30671.85925)
 
 ```bibtex
-@article{synid2025,
-  title={SynID: Zero-Shot Identity-Consistent Image Generation via Synthetic Bootstrapping and On-the-Fly UNet Adaptation},
-  author={Singh, Robin},
-  journal={arXiv preprint},
-  year={2025}
+@article{singh2025synid,
+  title   = {SynID: Zero-Shot Identity-Consistent Image Generation via
+             Synthetic Bootstrapping and On-the-Fly UNet Adaptation},
+  author  = {Singh, Robin},
+  year    = {2025},
+  doi     = {10.13140/RG.2.2.30671.85925},
+  url     = {https://doi.org/10.13140/RG.2.2.30671.85925}
 }
 ```
 
 ---
 
-## Status
+## License
 
-🚧 **Work in progress** — actively improving. Current focus:
-- [x] Stronger face-specific loss (ArcFace-integrated projector + adapter losses)
-- [~] Pose-free generation path implemented, but still trails the main ControlNet route in identity stability
-- [~] Multi-character consistency checks and saved-profile evaluation implemented; broader multi-character generation remains open
-- [~] SDXL loading scaffold added; full SDXL pipeline support is not yet production-complete
+[MIT](LICENSE) © 2025 Robin Singh
