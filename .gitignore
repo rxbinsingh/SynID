@@ -18,13 +18,12 @@ venv/
 checkpoints/
 adapter_library/
 
-# Output images
-synid_output/
-# Track assets folder but ignore loose output images
+# Output images — ignore loose files but always track the assets folder
 !assets/
 !assets/*.png
 !assets/*.jpg
 !assets/*.jpeg
+synid_output/
 *.png
 *.jpg
 *.jpeg
