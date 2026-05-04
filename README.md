@@ -102,7 +102,7 @@ Generation
 
 ### Limitations and failure cases
 
-![Failure Cases](assets/failure_cases.png)
+![Failure Cases](assets/failure.png)
 
 ---
 
