@@ -4,6 +4,7 @@
 
 [![Paper](https://img.shields.io/badge/paper-ResearchGate-00CCBB?logo=researchgate&logoColor=white)](https://doi.org/10.13140/RG.2.2.30671.85925)
 [![HuggingFace](https://img.shields.io/badge/🤗%20HuggingFace-SynID-FFD21E)](https://huggingface.co/rxbinsingh/SynID)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rxbinsingh/SynID/blob/main/SynID_Demo.ipynb)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 
@@ -79,6 +80,8 @@ Generation
 ### Evaluation suites — expression, scene, pose, seed robustness
 
 ![Evaluation Suites](assets/eval_suites.png)
+
+![Evaluation Suites (with seed labels)](assets/eval_suites_labelled.png)
 
 ### Ablation — each component's contribution
 
